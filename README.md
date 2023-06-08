@@ -27,4 +27,53 @@ The System Manager was created to simplify the handling of dependencies between 
 4. Execute the systems in the sorted order using the `Frame()` function.
 5. Clean up the systems using `Destroy()`.
 
-Please refer to the code comments and the main function in the code for a usage example.
+## Example
+
+```cpp
+#include <iostream>
+#include <vector>
+#include <queue>
+#include <string>
+#include <set>
+#include <map>
+#include <cstdarg>
+#include <windows.h>
+
+// Define ISystem struct
+
+// Define SystemManager class
+
+int main()
+{
+    // Create system instances
+    ISystem* Render = SystemManager::GetHandle().Create("RenderSystem");
+    ISystem* Move = SystemManager::GetHandle().Create("MovementSystem");
+    ISystem* Collision = SystemManager::GetHandle().Create("CollisionSystem");
+    ISystem* Light = SystemManager::GetHandle().Create("LightSystem");
+    ISystem* Physics = SystemManager::GetHandle().Create("PhysicsSystem");
+    ISystem* Camera = SystemManager::GetHandle().Create("CameraSystem");
+
+    // Set system dependencies
+    SystemManager::GetHandle().SetDependency(Move, Collision);
+    SystemManager::GetHandle().SetDependency(Render, Move);
+    SystemManager::GetHandle().SetDependency(Render, Light);
+    SystemManager::GetHandle().SetDependency(Collision, Physics);
+    SystemManager::GetHandle().SetDependency(Light, Physics);
+
+    // Circlic Dependency
+    SystemManager::GetHandle().SetDependency(Camera, Render);
+    SystemManager::GetHandle().SetDependency(Render, Camera);
+
+    // Sort systems based on dependencies
+    SystemManager::GetHandle().Sort();
+
+    // Execute systems in the sorted order
+    SystemManager::GetHandle().Frame();
+
+    // Clean up systems
+    SystemManager::GetHandle().Destroy();
+
+    return 0;
+}
+
+```

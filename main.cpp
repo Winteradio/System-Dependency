@@ -184,9 +184,6 @@ class SystemManager
 					}
 				}
 				Temp.pop();
-				
-				Sleep( 100 );
-				
 			}
 			
 			if ( m_Sequence.size() != m_Data.size() ) 
