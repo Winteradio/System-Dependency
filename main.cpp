@@ -5,6 +5,7 @@
 #include <set>
 #include <map>
 #include <cstdarg>
+#include <windows.h>
 
 struct ISystem
 {	
@@ -30,7 +31,7 @@ struct ISystem
 class SystemManager
 {
 	using Data = std::map< std::string, ISystem* >;
-	using Need = std::map< std::string, std::vector< std::string > >;
+	using Need = std::map< std::string, std::set< std::string > >;
 	using Sequence = std::queue< ISystem* >;
 	using Done = std::queue< ISystem* >;
 	
@@ -49,7 +50,7 @@ class SystemManager
 			ISystem* System = new ISystem( Name );
 			
 			m_Data[ Name ] = System;
-			m_Need[ Name ] = std::vector< std::string >();
+			m_Need[ Name ] = std::set< std::string >();
 			
 			std::cout << "Create : " << Name << std::endl;
 			
@@ -58,8 +59,15 @@ class SystemManager
 		
 		void SetDependency( ISystem*& Main, ISystem*& Dependency )
 		{
-			m_Need[ Dependency->GetName() ].push_back( Main->GetName() );
-			Sort();
+			m_Need[ Dependency->GetName() ].insert( Main->GetName() );
+			
+			bool Check = Sort();
+			
+			if ( !Check )
+			{
+				DeleteDependency( Main, Dependency );
+				Sort();
+			}
 		}
 		
 		
@@ -71,6 +79,40 @@ class SystemManager
 			}
 			
 			m_Data.clear();
+		}
+		
+		void DeleteDependency( ISystem*& Main, ISystem*& Dependency )
+		{
+			{
+
+				auto ITR = m_Need.find( Dependency->GetName() );
+				
+				if ( ITR == m_Need.end() )
+				{
+					m_Need[ Dependency->GetName() ] = std::set< std::string >();
+					std::cout << "There is no Need for " << Dependency->GetName() << std::endl;
+					return;
+				}
+				
+			}
+			std::set< std::string > Dep = m_Need[ Dependency->GetName() ];
+			
+			{
+				auto ITR = m_Need[ Dependency->GetName() ].find( Main->GetName() );
+				
+				if ( ITR == m_Need[ Dependency->GetName() ].end() )
+				{
+					std::cout << "There is no dependency for " << Main->GetName() << std::endl;
+					return;
+				}
+				else
+				{
+					std::cout << "Erase Dependency for " << Main->GetName() << " : " << Dependency->GetName() << std::endl;
+				}
+				
+				m_Need[ Dependency->GetName() ].erase( ITR );
+				
+			}
 		}
 		
 		void Frame()
@@ -90,7 +132,7 @@ class SystemManager
 			}
 		}
 		
-		void Sort()
+		bool Sort()
 		{
 			m_Sequence = std::queue< ISystem* >();
 			
@@ -104,53 +146,55 @@ class SystemManager
 			
 			for ( auto ITR : m_Need )
 			{
-				std::vector< std::string > NeedsList = ITR.second;
+				std::set< std::string > NeedsList = ITR.second;
 				
 				for ( auto Name : NeedsList )
 				{
 					DepCount[ Name ]++;
 				}
 			}
-			
-			std::cout << " " << std::endl;
-			for ( auto ITR : DepCount )
-			{
-				std::cout << ITR.first << " : " << ITR.second << std::endl;
-			}
 
 			std::queue< ISystem* > Temp;			
-			while ( m_Sequence.size() < m_Data.size() )
+			
+			for ( auto ITR : DepCount )
 			{
-				for ( auto ITR : DepCount )
-				{
-					std::string Name = ITR.first;
-					int Count = ITR.second;
-					
-					if ( Count == 0 )
-					{
-						m_Sequence.push( m_Data[ Name ] );
-						Temp.push( m_Data[ Name ] );
-						std::cout << "Input : " << Name << std::endl;
-						DepCount[ Name ]--;
-					}
-				}
+				std::string Name = ITR.first;
+				int Count = ITR.second;
 				
-				while( !Temp.empty() )
+				if ( Count == 0 )
 				{
-					std::string Name = Temp.front()->GetName();
-					for ( auto System : m_Need[ Name ] )
-					{
-						DepCount[ System ]--;
-					}
-					Temp.pop();
-				}
-				
-				std::cout << " " << std::endl;
-				for ( auto ITR : DepCount )
-				{
-					std::cout << ITR.first << " : " << ITR.second << std::endl;
+					m_Sequence.push( m_Data[ Name ] );
+					Temp.push( m_Data[ Name ] );
+					DepCount[ Name ]--;
 				}
 			}
+			
+			while( !Temp.empty() )
+			{
+				std::string Name = Temp.front()->GetName();
+				for ( auto System : m_Need[ Name ] )
+				{
+					DepCount[ System ]--;
+					
+					if ( DepCount[ System ] == 0 )
+					{
+						m_Sequence.push( m_Data[ System] );
+						Temp.push( m_Data[ System ] );
+						DepCount[ System ]--;
+					}
+				}
+				Temp.pop();
+				
+				Sleep( 100 );
+				
+			}
+			
+			if ( m_Sequence.size() != m_Data.size() ) 
+			{
+				std::cout << " This Graphs is circlic " << std::endl;
+				return false;
+			}
+			else return true;
 		}
 		
 	private :
@@ -170,12 +214,18 @@ int main()
 	ISystem* Collision = SystemManager::GetHandle().Create( "CollisionSystem" );
 	ISystem* Light = SystemManager::GetHandle().Create( "LightSystem" );
 	ISystem* Physics = SystemManager::GetHandle().Create( "PhysicsSystem" );
+	ISystem* Camera = SystemManager::GetHandle().Create( "CameraSystem" );
 
 	SystemManager::GetHandle().SetDependency( Move, Collision );
 	SystemManager::GetHandle().SetDependency( Render, Move );
 	SystemManager::GetHandle().SetDependency( Render, Light );
 	SystemManager::GetHandle().SetDependency( Collision, Physics );
 	SystemManager::GetHandle().SetDependency( Light, Physics );
+	
+	// Circlic Dependency
+	SystemManager::GetHandle().SetDependency( Camera, Render );
+	SystemManager::GetHandle().SetDependency( Render, Camera );
+	
 	
 	SystemManager::GetHandle().Frame();
 	SystemManager::GetHandle().Destroy();
